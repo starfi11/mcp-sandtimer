@@ -1,0 +1,24 @@
+# Build artifacts
+/build/
+/build-*/
+/out/
+/dist/
+/.vs/
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+*.user
+*.log
+*.exe
+*.pdb
+*.obj
+*.dll
+*.lib
+*.exp
+*.ilk
+*.sln
+*.vcxproj*
+*.ninja
+*.ninja_deps
+*.ninja_log
+*.DS_Store

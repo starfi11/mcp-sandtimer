@@ -1,0 +1,5 @@
+#pragma once
+
+namespace mcp_sandtimer {
+inline constexpr const char* kVersion = "@PROJECT_VERSION@";
+}
