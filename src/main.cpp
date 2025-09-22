@@ -90,7 +90,14 @@ Options ParseOptions(int argc, char** argv) {
 int main(int argc, char** argv) {
     try {
         mcp_sandtimer::Logger::Info("mcp-sandtimer starting");
+        mcp_sandtimer::Logger::Debug("Parsing command-line options");
         Options options = ParseOptions(argc, argv);
+        mcp_sandtimer::Logger::Debug(std::string("Parsed options: host=") + options.host +
+                                     ", port=" + std::to_string(options.port) +
+                                     ", timeout_ms=" + std::to_string(options.timeout_ms) +
+                                     ", list_tools=" + (options.list_tools ? "true" : "false") +
+                                     ", show_version=" + (options.show_version ? "true" : "false") +
+                                     ", show_help=" + (options.show_help ? "true" : "false"));
         using mcp_sandtimer::json::Value;
 
         if (options.show_help) {

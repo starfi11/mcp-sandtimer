@@ -49,6 +49,7 @@ MCPSandTimerServer::MCPSandTimerServer(TimerClient client, std::istream& input, 
 void MCPSandTimerServer::Serve() {
     Logger::Info("Serve loop started");
     while (!shutdown_requested_) {
+        Logger::Info("Waiting for next JSON-RPC message from client");
         std::optional<json::Value> message;
         try {
             message = ReadMessage();
@@ -73,9 +74,11 @@ void MCPSandTimerServer::Serve() {
                 if (id_iter != object.end()) {
                     SendError(id_iter->second, error);
                 }
-            } catch (const json::ParseError&) {
-                Logger::Error("Unable to send error response: invalid JSON message.");
-                std::cerr << "Unable to send error response: invalid JSON message." << std::endl;
+            } catch (const json::ParseError& parse_error) {
+                Logger::Error(std::string("Unable to send error response due to invalid JSON message: ") +
+                              parse_error.what());
+                std::cerr << "Unable to send error response: invalid JSON message. " << parse_error.what()
+                          << std::endl;
             }
         } catch (const std::exception& ex) {
             Logger::Error(std::string("Unexpected exception during dispatch: ") + ex.what());
@@ -89,9 +92,11 @@ void MCPSandTimerServer::Serve() {
                         json::make_object({{"message", json::Value("An unexpected error occurred.")}}));
                     SendError(id_iter->second, internal_error);
                 }
-            } catch (const std::exception&) {
-                Logger::Error(std::string("Failed to send internal error response: ") + ex.what());
-                std::cerr << "Failed to send internal error response: " << ex.what() << std::endl;
+            } catch (const std::exception& send_error) {
+                Logger::Error(std::string("Failed to send internal error response: ") + send_error.what() +
+                              ", original error: " + ex.what());
+                std::cerr << "Failed to send internal error response: " << send_error.what()
+                          << ", original error: " << ex.what() << std::endl;
             }
         }
     }
@@ -139,7 +144,9 @@ std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
         if (key == "content-length") {
             try {
                 content_length = static_cast<std::size_t>(std::stoul(value));
-            } catch (const std::exception&) {
+            } catch (const std::exception& parse_error) {
+                Logger::Error(std::string("Failed to parse Content-Length header value '") + value + "': " +
+                              parse_error.what());
                 throw JSONRPCError(-32600, "Invalid Content-Length header");
             }
         }
@@ -191,23 +198,29 @@ void MCPSandTimerServer::Dispatch(const json::Value& message) {
 
     auto id_iter = object.find("id");
     if (id_iter == object.end()) {
+        Logger::Info(std::string("Message is a notification, dispatching HandleNotification for method: ") + method);
         HandleNotification(method, params);
         return;
     }
 
+    Logger::Info("Message is a request, invoking HandleRequest");
     json::Value result = HandleRequest(method, params);
     SendResponse(id_iter->second, result);
 }
 
 void MCPSandTimerServer::HandleNotification(const std::string& method, const json::Value& params) {
     (void)params;
+    Logger::Info(std::string("HandleNotification received method: ") + method);
     if (method == "notifications/initialized") {
+        Logger::Debug("notifications/initialized received - no action taken");
         return;
     }
     if (method == "notifications/cancelled") {
+        Logger::Info("Received cancellation notification from client");
         std::cerr << "Received cancellation notification" << std::endl;
         return;
     }
+    Logger::Info(std::string("Notification not explicitly handled: ") + method);
     std::cerr << "Ignoring notification: " << method << std::endl;
 }
 
@@ -216,13 +229,16 @@ json::Value MCPSandTimerServer::HandleRequest(const std::string& method, const j
     Logger::Info(std::string("Handling request: ") + method);
     Logger::Debug(std::string("Request params: ") + params.dump());
     if (method == "initialize") {
+        Logger::Info("Branching to HandleInitialize");
         return HandleInitialize(params);
     }
     if (method == "shutdown") {
+        Logger::Info("Shutdown request received - signalling serve loop to exit");
         shutdown_requested_ = true;
         return json::Value(nullptr);
     }
     if (method == "tools/list") {
+        Logger::Info("Branching to tools/list handler");
         json::Value::Array tools_array;
         for (const auto& tool : GetToolDefinitions()) {
             tools_array.push_back(tool.ToJson());
@@ -230,9 +246,11 @@ json::Value MCPSandTimerServer::HandleRequest(const std::string& method, const j
         return json::make_object({{"tools", json::Value(std::move(tools_array))}});
     }
     if (method == "tools/call") {
+        Logger::Info("Branching to HandleToolCall");
         return HandleToolCall(params);
     }
     if (method == "ping") {
+        Logger::Info("Responding to ping request with pong message");
         return json::make_object({{"message", json::Value("pong")}});
     }
     throw JSONRPCError(-32601, "Method not found", json::make_object({{"method", json::Value(method.c_str())}}));
@@ -284,10 +302,13 @@ json::Value MCPSandTimerServer::HandleToolCall(const json::Value& params) {
 
     std::string text;
     if (name == "start_timer") {
+        Logger::Info("Dispatching to HandleStart");
         text = HandleStart(arguments);
     } else if (name == "reset_timer") {
+        Logger::Info("Dispatching to HandleReset");
         text = HandleReset(arguments);
     } else if (name == "cancel_timer") {
+        Logger::Info("Dispatching to HandleCancel");
         text = HandleCancel(arguments);
     } else {
         throw JSONRPCError(-32601, "Tool not found", json::make_object({{"name", json::Value(name.c_str())}}));
@@ -315,6 +336,7 @@ std::string MCPSandTimerServer::HandleStart(const json::Value& arguments) {
     try {
         timer_client_.start_timer(label, seconds);
     } catch (const TimerClientError& error) {
+        Logger::Error(std::string("TimerClientError while starting timer: ") + error.what());
         throw JSONRPCError(-32001, "Failed to reach sandtimer", json::make_object({{"message", json::Value(error.what())}}));
     }
     std::ostringstream oss;
@@ -329,6 +351,7 @@ std::string MCPSandTimerServer::HandleReset(const json::Value& arguments) {
     try {
         timer_client_.reset_timer(label);
     } catch (const TimerClientError& error) {
+        Logger::Error(std::string("TimerClientError while resetting timer: ") + error.what());
         throw JSONRPCError(-32001, "Failed to reach sandtimer", json::make_object({{"message", json::Value(error.what())}}));
     }
     return "Reset timer '" + label + "'.";
@@ -341,6 +364,7 @@ std::string MCPSandTimerServer::HandleCancel(const json::Value& arguments) {
     try {
         timer_client_.cancel_timer(label);
     } catch (const TimerClientError& error) {
+        Logger::Error(std::string("TimerClientError while cancelling timer: ") + error.what());
         throw JSONRPCError(-32001, "Failed to reach sandtimer", json::make_object({{"message", json::Value(error.what())}}));
     }
     return "Cancelled timer '" + label + "'.";
