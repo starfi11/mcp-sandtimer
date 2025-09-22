@@ -9,9 +9,9 @@ namespace mcp_sandtimer {
 class Logger {
 public:
     enum class Level {
-        DEBUG = 0,
-        INFO = 1,
-        ERROR = 2
+        Debug = 0,
+        Info = 1,
+        Error = 2
     };
 
     static Logger& Instance();
@@ -37,7 +37,7 @@ private:
 
     std::ofstream stream_;
     mutable std::mutex mutex_;
-    Level level_ = Level::INFO;
+    Level level_ = Level::Info;
 };
 
 }  // namespace mcp_sandtimer
