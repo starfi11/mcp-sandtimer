@@ -9,6 +9,7 @@
 
 #include "mcp_sandtimer/ToolDefinition.h"
 #include "mcp_sandtimer/Version.h"
+#include "mcp_sandtimer/Logger.h"
 // MCP 协议服务端核心实现，从MCP客户端（Cursor）读取 JSON-RPC消息，并进行处理
 
 namespace mcp_sandtimer {
@@ -46,22 +47,26 @@ MCPSandTimerServer::MCPSandTimerServer(TimerClient client, std::istream& input, 
 
 // 不断从 stdin 读取 JSON-RPC 消息，调度执行并返回响应
 void MCPSandTimerServer::Serve() {
+    Logger::Info("Serve loop started");
     while (!shutdown_requested_) {
         std::optional<json::Value> message;
         try {
             message = ReadMessage();
         } catch (const JSONRPCError& error) {
+            Logger::Error(std::string("Failed to read JSON-RPC message: ") + error.what());
             std::cerr << "Failed to read JSON-RPC message: " << error.what() << std::endl;
             continue;
         }
 
         if (!message.has_value()) {
+            Logger::Info("No more messages to read. Exiting serve loop.");
             break;
         }
 
         try {
             Dispatch(*message);
         } catch (const JSONRPCError& error) {
+            Logger::Error(std::string("JSON-RPC error during dispatch: ") + error.what());
             try {
                 const auto& object = message->as_object();
                 auto id_iter = object.find("id");
@@ -69,9 +74,11 @@ void MCPSandTimerServer::Serve() {
                     SendError(id_iter->second, error);
                 }
             } catch (const json::ParseError&) {
+                Logger::Error("Unable to send error response: invalid JSON message.");
                 std::cerr << "Unable to send error response: invalid JSON message." << std::endl;
             }
         } catch (const std::exception& ex) {
+            Logger::Error(std::string("Unexpected exception during dispatch: ") + ex.what());
             try {
                 const auto& object = message->as_object();
                 auto id_iter = object.find("id");
@@ -83,10 +90,12 @@ void MCPSandTimerServer::Serve() {
                     SendError(id_iter->second, internal_error);
                 }
             } catch (const std::exception&) {
+                Logger::Error(std::string("Failed to send internal error response: ") + ex.what());
                 std::cerr << "Failed to send internal error response: " << ex.what() << std::endl;
             }
         }
     }
+    Logger::Info("Serve loop exited");
 }
 
 const std::vector<ToolDefinition>& MCPSandTimerServer::ToolDefinitions() {
@@ -98,6 +107,8 @@ std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
     std::string line;
     std::size_t content_length = 0;
     bool saw_header = false;
+    std::ostringstream header_stream;
+    bool has_headers = false;
 
     // 循环逐行读取头部
     while (true) {
@@ -114,6 +125,11 @@ std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
             break;
         }
         saw_header = true;
+        if (has_headers) {
+            header_stream << "; ";
+        }
+        header_stream << line;
+        has_headers = true;
         auto colon = line.find(':');
         if (colon == std::string::npos) {
             throw JSONRPCError(-32700, "Invalid header line", json::make_object({{"header", json::Value(line.c_str())}}));
@@ -144,9 +160,16 @@ std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
         throw JSONRPCError(-32700, "Unexpected end of stream while reading payload");
     }
 
+    if (has_headers) {
+        Logger::Debug(std::string("Read headers: ") + header_stream.str());
+    }
+    Logger::Debug(std::string("Read payload: ") + payload);
+    Logger::Info("Received message from client");
+
     try {
         return json::Value::parse(payload);
     } catch (const json::ParseError& error) {
+        Logger::Error(std::string("Failed to parse JSON payload: ") + error.what());
         throw JSONRPCError(-32700, "Parse error", json::make_object({{"message", json::Value(error.what())}}));
     }
 }
@@ -162,6 +185,9 @@ void MCPSandTimerServer::Dispatch(const json::Value& message) {
 
     auto params_iter = object.find("params");
     json::Value params = params_iter != object.end() ? params_iter->second : json::Value(json::Value::Object{});
+
+    Logger::Info(std::string("Dispatching method: ") + method);
+    Logger::Debug(std::string("Dispatch params: ") + params.dump());
 
     auto id_iter = object.find("id");
     if (id_iter == object.end()) {
@@ -187,6 +213,8 @@ void MCPSandTimerServer::HandleNotification(const std::string& method, const jso
 
 // 方法调度器
 json::Value MCPSandTimerServer::HandleRequest(const std::string& method, const json::Value& params) {
+    Logger::Info(std::string("Handling request: ") + method);
+    Logger::Debug(std::string("Request params: ") + params.dump());
     if (method == "initialize") {
         return HandleInitialize(params);
     }
@@ -232,12 +260,15 @@ json::Value MCPSandTimerServer::HandleInitialize(const json::Value& params) {
 }
 
 json::Value MCPSandTimerServer::HandleToolCall(const json::Value& params) {
+    Logger::Info("Handling tool call request");
+    Logger::Debug(std::string("Tool call params: ") + params.dump());
     const auto& object = params.as_object();
     auto name_iter = object.find("name");
     if (name_iter == object.end() || !name_iter->second.is_string()) {
         throw JSONRPCError(-32602, "Invalid params", json::make_object({{"message", json::Value("Tool name must be provided as a string.")}}));
     }
     std::string name = name_iter->second.as_string();
+    Logger::Info(std::string("Tool call name: ") + name);
 
     json::Value arguments;
     auto args_iter = object.find("arguments");
@@ -249,6 +280,7 @@ json::Value MCPSandTimerServer::HandleToolCall(const json::Value& params) {
     } else {
         arguments = json::Value(json::Value::Object{});
     }
+    Logger::Debug(std::string("Tool call arguments: ") + arguments.dump());
 
     std::string text;
     if (name == "start_timer") {
@@ -267,6 +299,8 @@ json::Value MCPSandTimerServer::HandleToolCall(const json::Value& params) {
 }
 
 std::string MCPSandTimerServer::HandleStart(const json::Value& arguments) {
+    Logger::Info("HandleStart called");
+    Logger::Debug(std::string("Start arguments: ") + arguments.dump());
     std::string label = ExtractLabel(arguments);
     const auto& object = arguments.as_object();
     auto time_iter = object.find("time");
@@ -289,6 +323,8 @@ std::string MCPSandTimerServer::HandleStart(const json::Value& arguments) {
 }
 
 std::string MCPSandTimerServer::HandleReset(const json::Value& arguments) {
+    Logger::Info("HandleReset called");
+    Logger::Debug(std::string("Reset arguments: ") + arguments.dump());
     std::string label = ExtractLabel(arguments);
     try {
         timer_client_.reset_timer(label);
@@ -299,6 +335,8 @@ std::string MCPSandTimerServer::HandleReset(const json::Value& arguments) {
 }
 
 std::string MCPSandTimerServer::HandleCancel(const json::Value& arguments) {
+    Logger::Info("HandleCancel called");
+    Logger::Debug(std::string("Cancel arguments: ") + arguments.dump());
     std::string label = ExtractLabel(arguments);
     try {
         timer_client_.cancel_timer(label);
@@ -323,6 +361,7 @@ std::string MCPSandTimerServer::ExtractLabel(const json::Value& arguments) {
 
 void MCPSandTimerServer::Send(const json::Value& payload) {
     const std::string encoded = payload.dump();
+    Logger::Debug(std::string("Send raw payload: ") + encoded);
     output_ << "Content-Length: " << encoded.size() << "\r\n\r\n" << encoded;
     output_.flush();
 }
@@ -333,6 +372,7 @@ void MCPSandTimerServer::SendResponse(const json::Value& id, const json::Value& 
         {"id", id},
         {"result", result}
     });
+    Logger::Info(std::string("SendResponse: ") + response.dump());
     Send(response);
 }
 
@@ -349,6 +389,7 @@ void MCPSandTimerServer::SendError(const json::Value& id, const JSONRPCError& er
         {"id", id},
         {"error", error_object}
     });
+    Logger::Info(std::string("SendError: ") + response.dump());
     Send(response);
 }
 
