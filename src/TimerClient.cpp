@@ -20,6 +20,7 @@
 #endif
 
 #include "mcp_sandtimer/Json.h"
+#include "mcp_sandtimer/Logger.h"
 
 namespace mcp_sandtimer {
 // TimerClient 负责和 sandtimer 程序的 TCP端口通信
@@ -75,32 +76,42 @@ TimerClient::TimerClient(std::string host, std::uint16_t port, milliseconds time
     : host_(std::move(host)), port_(port), timeout_(timeout) {}
 
 void TimerClient::start_timer(const std::string& label, int seconds) const {
+    Logger::Info(std::string("TimerClient::start_timer invoked for label '") + label +
+                 "' with duration " + std::to_string(seconds) + " seconds");
     json::Value payload = json::make_object({
         {"cmd", json::Value("start")},
         {"label", json::Value(label.c_str())},
         {"time", json::Value(seconds)}
     });
+    Logger::Debug(std::string("Start timer payload: ") + payload.dump());
     send_payload(payload);
 }
 
 void TimerClient::reset_timer(const std::string& label) const {
+    Logger::Info(std::string("TimerClient::reset_timer invoked for label '") + label + "'");
     json::Value payload = json::make_object({
         {"cmd", json::Value("reset")},
         {"label", json::Value(label.c_str())}
     });
+    Logger::Debug(std::string("Reset timer payload: ") + payload.dump());
     send_payload(payload);
 }
 
 void TimerClient::cancel_timer(const std::string& label) const {
+    Logger::Info(std::string("TimerClient::cancel_timer invoked for label '") + label + "'");
     json::Value payload = json::make_object({
         {"cmd", json::Value("cancel")},
         {"label", json::Value(label.c_str())}
     });
+    Logger::Debug(std::string("Cancel timer payload: ") + payload.dump());
     send_payload(payload);
 }
 // 发送消息给sandtimer，每次都建立新连接，发送完毕后关闭连接，所以接收端不readAll就能拿到完整消息。
 void TimerClient::send_payload(const json::Value& payload) const {
     const std::string message = payload.dump();
+    Logger::Info(std::string("TimerClient::send_payload preparing to send message to ") + host_ +
+                 ":" + std::to_string(port_));
+    Logger::Debug(std::string("Raw payload before send: ") + message);
 
 #ifdef _WIN32
     WinsockSession session;
@@ -120,6 +131,7 @@ void TimerClient::send_payload(const json::Value& payload) const {
 
     addrinfo* raw_info = nullptr;
     // DNS/地址解析
+    Logger::Debug(std::string("Resolving host '") + host_ + "' and port " + port_string);
     int status = getaddrinfo(host_.c_str(), port_string.c_str(), &hints, &raw_info);
     if (status != 0) {
 #ifdef _WIN32
@@ -139,6 +151,7 @@ void TimerClient::send_payload(const json::Value& payload) const {
         socket_handle socket = ::socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol);
         if (socket == kInvalidSocket) {
             error_message = last_error_message("Failed to create socket");
+            Logger::Error(error_message);
             continue;
         }
 
@@ -154,11 +167,15 @@ void TimerClient::send_payload(const json::Value& payload) const {
         setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 #endif
 
+        Logger::Debug("Attempting to connect to sandtimer endpoint");
         if (::connect(socket, entry->ai_addr, static_cast<int>(entry->ai_addrlen)) != 0) {
             error_message = last_error_message("Failed to connect to sandtimer");
+            Logger::Error(error_message);
             close_socket(socket);
             continue;
         }
+
+        Logger::Info("TimerClient connection established, beginning payload send");
 
         const char* data = message.data();
         std::size_t remaining = message.size();
@@ -167,22 +184,26 @@ void TimerClient::send_payload(const json::Value& payload) const {
 #ifdef _WIN32
             if (chunk == SOCKET_ERROR) {
                 error_message = last_error_message("Failed to send payload");
+                Logger::Error(error_message);
                 break;
             }
 #else
             if (chunk < 0) {
                 error_message = last_error_message("Failed to send payload");
+                Logger::Error(error_message);
                 break;
             }
 #endif
             data += chunk;
             remaining -= static_cast<std::size_t>(chunk);
+            Logger::Debug(std::string("Sent chunk, remaining bytes: ") + std::to_string(remaining));
         }
 
         close_socket(socket);
 
         if (remaining == 0) {
             sent = true;
+            Logger::Info("TimerClient payload sent successfully");
             break;
         }
     }
@@ -191,8 +212,11 @@ void TimerClient::send_payload(const json::Value& payload) const {
         if (error_message.empty()) {
             error_message = "Unable to deliver payload to sandtimer";
         }
+        Logger::Error(std::string("TimerClient failed to deliver payload: ") + error_message);
         throw TimerClientError(error_message);
     }
+
+    Logger::Debug("TimerClient::send_payload completed successfully");
 }
 
 }  // namespace mcp_sandtimer
