@@ -3,6 +3,7 @@
 #include "mcp_sandtimer/ToolDefinition.h"
 #include "mcp_sandtimer/Version.h"
 #include "mcp_sandtimer/Json.h"
+#include "mcp_sandtimer/Logger.h"
 
 #include <chrono>
 #include <cstdint>
@@ -88,20 +89,24 @@ Options ParseOptions(int argc, char** argv) {
 
 int main(int argc, char** argv) {
     try {
+        mcp_sandtimer::Logger::Info("mcp-sandtimer starting");
         Options options = ParseOptions(argc, argv);
         using mcp_sandtimer::json::Value;
 
         if (options.show_help) {
+            mcp_sandtimer::Logger::Info("Displaying help information");
             PrintUsage();
             return 0;
         }
 
         if (options.show_version) {
+            mcp_sandtimer::Logger::Info("Displaying version information");
             std::cout << "mcp-sandtimer " << mcp_sandtimer::kVersion << std::endl;
             return 0;
         }
 
         if (options.list_tools) {
+            mcp_sandtimer::Logger::Info("Listing available tools and exiting");
             Value::Array tools_json;
             for (const auto& tool : mcp_sandtimer::MCPSandTimerServer::ToolDefinitions()) {
                 tools_json.push_back(tool.ToJson());
@@ -111,12 +116,19 @@ int main(int argc, char** argv) {
             return 0;
         }
 
+        mcp_sandtimer::Logger::Info(std::string("Connecting to sandtimer at ") + options.host +
+                                    ":" + std::to_string(options.port));
+        mcp_sandtimer::Logger::Debug(std::string("Timer connection timeout (ms): ") +
+                                     std::to_string(options.timeout_ms));
         mcp_sandtimer::TimerClient client(options.host, options.port, std::chrono::milliseconds(options.timeout_ms));
         mcp_sandtimer::MCPSandTimerServer server(std::move(client));
+        mcp_sandtimer::Logger::Info("Starting MCP server loop");
         server.Serve();
+        mcp_sandtimer::Logger::Info("mcp-sandtimer exiting normally");
         return 0;
     } catch (const std::exception& ex) {
         std::cerr << "mcp-sandtimer: " << ex.what() << std::endl;
+        mcp_sandtimer::Logger::Error(std::string("Unhandled exception: ") + ex.what());
         return 1;
     }
 }
