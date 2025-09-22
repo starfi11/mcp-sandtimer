@@ -36,7 +36,7 @@ Logger& Logger::Instance() {
 }
 
 Logger::Logger() : stream_("mcp-sandtimer.log", std::ios::app) {
-    level_ = Level::INFO;
+    level_ = Level::Info;
     const char* env = std::getenv("MCP_SANDTIMER_LOG_LEVEL");
     if (env) {
         level_ = ParseLevelName(env, level_);
@@ -65,15 +65,15 @@ void Logger::SetLevel(const std::string& level_name) {
 }
 
 void Logger::Debug(const std::string& message) {
-    Instance().Log(Level::DEBUG, message);
+    Instance().Log(Level::Debug, message);
 }
 
 void Logger::Info(const std::string& message) {
-    Instance().Log(Level::INFO, message);
+    Instance().Log(Level::Info, message);
 }
 
 void Logger::Error(const std::string& message) {
-    Instance().Log(Level::ERROR, message);
+    Instance().Log(Level::Error, message);
 }
 
 void Logger::Log(Level level, const std::string& message) {
@@ -88,7 +88,7 @@ void Logger::Log(Level level, const std::string& message) {
         stream_ << formatted << std::endl;
         stream_.flush();
     }
-    if (level == Level::ERROR) {
+    if (level == Level::Error) {
         std::cerr << formatted << std::endl;
     }
 }
@@ -99,11 +99,11 @@ bool Logger::ShouldLog(Level level) const {
 
 std::string Logger::LevelToString(Level level) {
     switch (level) {
-        case Level::DEBUG:
+        case Level::Debug:
             return "DEBUG";
-        case Level::INFO:
+        case Level::Info:
             return "INFO";
-        case Level::ERROR:
+        case Level::Error:
             return "ERROR";
     }
     return "INFO";
@@ -117,13 +117,13 @@ Logger::Level Logger::ParseLevelName(const std::string& level_name, Level defaul
     }
 
     if (normalized == "DEBUG") {
-        return Level::DEBUG;
+        return Level::Debug;
     }
     if (normalized == "INFO") {
-        return Level::INFO;
+        return Level::Info;
     }
     if (normalized == "ERROR") {
-        return Level::ERROR;
+        return Level::Error;
     }
     return default_level;
 }
