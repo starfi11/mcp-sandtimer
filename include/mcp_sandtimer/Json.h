@@ -9,15 +9,18 @@
 #include <utility>
 #include <vector>
 
+// 一个简单的JSON数据表示和解析，不支持复杂JSON特性
 namespace mcp_sandtimer::json {
 
 class ParseError : public std::runtime_error {
 public:
     explicit ParseError(const std::string& message);
 };
+// JSON 解析错误时抛出的异常类型，继承自 std::runtime_error
 
 class Value {
 public:
+    // 值类型
     enum class Type { Null, Boolean, Number, String, Object, Array };
     using Object = std::map<std::string, Value>;
     using Array = std::vector<Value>;

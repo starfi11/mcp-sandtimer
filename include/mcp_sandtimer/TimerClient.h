@@ -16,7 +16,7 @@ public:
 
 class TimerClient {
 public:
-    using milliseconds = std::chrono::milliseconds;
+    using milliseconds = std::chrono::milliseconds; // 超时单位
 
     TimerClient();
     TimerClient(std::string host, std::uint16_t port, milliseconds timeout = milliseconds{5000});
@@ -37,7 +37,7 @@ private:
     std::string host_;
     std::uint16_t port_;
     milliseconds timeout_;
-
+    // JSON序列化后发到 sandtimer 监听的 TCP 端口
     void send_payload(const json::Value& payload) const;
 };
 

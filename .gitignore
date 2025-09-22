@@ -4,6 +4,7 @@
 /out/
 /dist/
 /.vs/
+/.vscode/
 CMakeFiles/
 CMakeCache.txt
 cmake-build-*/

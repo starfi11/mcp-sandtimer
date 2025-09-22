@@ -22,7 +22,8 @@
 #include "mcp_sandtimer/Json.h"
 
 namespace mcp_sandtimer {
-
+// TimerClient 负责和 sandtimer 程序的 TCP端口通信
+// 下面处理跨平台 sokect 适配
 namespace {
 #ifdef _WIN32
 struct WinsockSession {
@@ -97,7 +98,7 @@ void TimerClient::cancel_timer(const std::string& label) const {
     });
     send_payload(payload);
 }
-
+// 发送消息给sandtimer，每次都建立新连接，发送完毕后关闭连接，所以接收端不readAll就能拿到完整消息。
 void TimerClient::send_payload(const json::Value& payload) const {
     const std::string message = payload.dump();
 
@@ -118,6 +119,7 @@ void TimerClient::send_payload(const json::Value& payload) const {
     std::string port_string = std::to_string(port_);
 
     addrinfo* raw_info = nullptr;
+    // DNS/地址解析
     int status = getaddrinfo(host_.c_str(), port_string.c_str(), &hints, &raw_info);
     if (status != 0) {
 #ifdef _WIN32
@@ -132,7 +134,7 @@ void TimerClient::send_payload(const json::Value& payload) const {
 
     bool sent = false;
     std::string error_message;
-
+    // 遍历所有解析到的地址，尝试连接。连接后分块发送数据，直到所有字节发送完毕。
     for (addrinfo* entry = info.get(); entry != nullptr; entry = entry->ai_next) {
         socket_handle socket = ::socket(entry->ai_family, entry->ai_socktype, entry->ai_protocol);
         if (socket == kInvalidSocket) {

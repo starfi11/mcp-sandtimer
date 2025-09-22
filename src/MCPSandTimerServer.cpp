@@ -9,11 +9,13 @@
 
 #include "mcp_sandtimer/ToolDefinition.h"
 #include "mcp_sandtimer/Version.h"
+// MCP 协议服务端核心实现，从MCP客户端（Cursor）读取 JSON-RPC消息，并进行处理
 
 namespace mcp_sandtimer {
 namespace {
 constexpr const char* kProtocolVersion = "0.1";
 
+// 去除字符串前后空白字符
 std::string Trim(const std::string& value) {
     std::size_t start = 0;
     while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) {
@@ -26,6 +28,7 @@ std::string Trim(const std::string& value) {
     return value.substr(start, end - start);
 }
 
+// 转换字符串为小写
 std::string ToLower(std::string text) {
     std::transform(text.begin(), text.end(), text.begin(), [](unsigned char ch) {
         return static_cast<char>(std::tolower(ch));
@@ -41,6 +44,7 @@ JSONRPCError::JSONRPCError(int code, std::string message, std::optional<json::Va
 MCPSandTimerServer::MCPSandTimerServer(TimerClient client, std::istream& input, std::ostream& output)
     : timer_client_(std::move(client)), input_(input), output_(output) {}
 
+// 不断从 stdin 读取 JSON-RPC 消息，调度执行并返回响应
 void MCPSandTimerServer::Serve() {
     while (!shutdown_requested_) {
         std::optional<json::Value> message;
@@ -89,11 +93,13 @@ const std::vector<ToolDefinition>& MCPSandTimerServer::ToolDefinitions() {
     return GetToolDefinitions();
 }
 
+// 读取 MCP/JSON-RPC 消息
 std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
     std::string line;
     std::size_t content_length = 0;
     bool saw_header = false;
 
+    // 循环逐行读取头部
     while (true) {
         if (!std::getline(input_, line)) {
             if (!saw_header && input_.eof()) {
@@ -131,6 +137,7 @@ std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
         throw JSONRPCError(-32600, "Missing Content-Length header");
     }
 
+    // 按 content_length 读取 JSON 负载
     std::string payload(content_length, '\0');
     input_.read(payload.data(), static_cast<std::streamsize>(content_length));
     if (static_cast<std::size_t>(input_.gcount()) != content_length) {
@@ -144,6 +151,7 @@ std::optional<json::Value> MCPSandTimerServer::ReadMessage() {
     }
 }
 
+// JSON-RPC 消息分流处理（请求/通知）
 void MCPSandTimerServer::Dispatch(const json::Value& message) {
     const auto& object = message.as_object();
     auto method_iter = object.find("method");
@@ -177,6 +185,7 @@ void MCPSandTimerServer::HandleNotification(const std::string& method, const jso
     std::cerr << "Ignoring notification: " << method << std::endl;
 }
 
+// 方法调度器
 json::Value MCPSandTimerServer::HandleRequest(const std::string& method, const json::Value& params) {
     if (method == "initialize") {
         return HandleInitialize(params);
@@ -201,16 +210,20 @@ json::Value MCPSandTimerServer::HandleRequest(const std::string& method, const j
     throw JSONRPCError(-32601, "Method not found", json::make_object({{"method", json::Value(method.c_str())}}));
 }
 
+// MCP 协议中的 initialize 请求。客户端启动时的握手步骤
 json::Value MCPSandTimerServer::HandleInitialize(const json::Value& params) {
     (void)params;
     initialized_ = true;
+    // 构造服务端信息
     json::Value server_info = json::make_object({
         {"name", json::Value("mcp-sandtimer")},
         {"version", json::Value(kVersion)}
     });
+    // 声明能力
     json::Value capabilities = json::make_object({
         {"tools", json::make_object({{"listChanged", json::Value(false)}})}
     });
+    // 返回握手结果
     return json::make_object({
         {"protocolVersion", json::Value(kProtocolVersion)},
         {"serverInfo", server_info},

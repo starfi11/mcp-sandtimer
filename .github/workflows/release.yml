@@ -10,26 +10,31 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # 拉取仓库代码
 
       - name: Configure CMake
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        # CMake 配置项目，生成 VS2022 x64 的构建文件，输出到 build 目录
 
       - name: Build
         run: cmake --build build --config Release
+        # 构建 Release 配置，生成 mcp-sandtimer.exe
 
       - name: Run tests
         run: ctest -C Release --output-on-failure
         working-directory: build
+        # 运行 CTest 测试套件，任何失败会显示详细输出
 
       - name: Package
         run: cmake --build build --config Release --target package
+        # 执行 CPack 打包命令，生成 ZIP 包 (mcp-sandtimer-版本号-windows-x86_64.zip)
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mcp-sandtimer-windows
           path: build/mcp-sandtimer-*.zip
+        # 将打好的 ZIP 包作为 workflow artifact 上传，方便在 Actions 界面下载
 
       - name: Publish release asset
         uses: softprops/action-gh-release@v2
@@ -37,3 +42,4 @@ jobs:
           files: build/mcp-sandtimer-*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # 把 ZIP 包作为 Release 资产上传到对应 tag 的 GitHub Release 页面

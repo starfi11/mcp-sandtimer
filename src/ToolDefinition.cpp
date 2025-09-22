@@ -4,6 +4,7 @@
 
 namespace mcp_sandtimer {
 
+// 把 ToolDefinition 转为 JSON 格式
 json::Value ToolDefinition::ToJson() const {
     return json::make_object({
         {"name", json::Value(name)},
@@ -12,55 +13,61 @@ json::Value ToolDefinition::ToJson() const {
     });
 }
 
+// 集中定义 MCP 工具列表及其输入参数 JSON Schema
 const std::vector<ToolDefinition>& GetToolDefinitions() {
     static const std::vector<ToolDefinition> kDefinitions = [] {
         using json::Value;
-        using json::make_array;
-        using json::make_object;
 
-        Value start_schema = make_object({
-            {"type", Value("object")},
-            {"properties", make_object({
-                {"label", make_object({
-                    {"type", Value("string")},
-                    {"description", Value("Identifier shown in the sandtimer window.")},
-                    {"minLength", Value(1)}
-                })},
-                {"time", make_object({
-                    {"type", Value("number")},
-                    {"description", Value("Duration for the countdown in seconds.")},
-                    {"minimum", Value(1)}
-                })}
-            })},
-            {"required", make_array({Value("label"), Value("time")})},
-            {"additionalProperties", Value(false)}
-        });
+        // 用 JSON 字符串直接定义 schema
+        Value start_schema = Value::parse(R"json(
+        {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "description": "Identifier shown in the sandtimer window.",
+              "minLength": 1
+            },
+            "time": {
+              "type": "number",
+              "description": "Duration for the countdown in seconds.",
+              "minimum": 1
+            }
+          },
+          "required": ["label", "time"],
+          "additionalProperties": false
+        }
+        )json");
 
-        Value reset_schema = make_object({
-            {"type", Value("object")},
-            {"properties", make_object({
-                {"label", make_object({
-                    {"type", Value("string")},
-                    {"description", Value("Identifier of the timer to reset.")},
-                    {"minLength", Value(1)}
-                })}
-            })},
-            {"required", make_array({Value("label")})},
-            {"additionalProperties", Value(false)}
-        });
+        Value reset_schema = Value::parse(R"json(
+        {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "description": "Identifier of the timer to reset.",
+              "minLength": 1
+            }
+          },
+          "required": ["label"],
+          "additionalProperties": false
+        }
+        )json");
 
-        Value cancel_schema = make_object({
-            {"type", Value("object")},
-            {"properties", make_object({
-                {"label", make_object({
-                    {"type", Value("string")},
-                    {"description", Value("Identifier of the timer to cancel.")},
-                    {"minLength", Value(1)}
-                })}
-            })},
-            {"required", make_array({Value("label")})},
-            {"additionalProperties", Value(false)}
-        });
+        Value cancel_schema = Value::parse(R"json(
+        {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "description": "Identifier of the timer to cancel.",
+              "minLength": 1
+            }
+          },
+          "required": ["label"],
+          "additionalProperties": false
+        }
+        )json");
 
         return std::vector<ToolDefinition>{
             ToolDefinition{"start_timer", "Start or restart a sandtimer countdown.", start_schema},
