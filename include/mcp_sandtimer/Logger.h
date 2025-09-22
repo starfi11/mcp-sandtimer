@@ -11,7 +11,7 @@ public:
     enum class Level {
         DEBUG = 0,
         INFO = 1,
-        ERROR = 2,
+        ERROR = 2
     };
 
     static Logger& Instance();
