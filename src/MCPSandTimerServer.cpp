@@ -14,7 +14,7 @@
 
 namespace mcp_sandtimer {
 namespace {
-constexpr const char* kProtocolVersion = "0.1";
+constexpr const char* kProtocolVersion = "2024-11-05";
 
 // 去除字符串前后空白字符
 std::string Trim(const std::string& value) {
