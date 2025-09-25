@@ -267,7 +267,7 @@ json::Value MCPSandTimerServer::HandleInitialize(const json::Value& params) {
     });
     // 声明能力
     json::Value capabilities = json::make_object({
-        {"tools", json::make_object({{"listChanged", json::Value(false)}})}
+        {"tools", json::make_object({})}
     });
     // 返回握手结果
     return json::make_object({
@@ -386,7 +386,10 @@ std::string MCPSandTimerServer::ExtractLabel(const json::Value& arguments) {
 void MCPSandTimerServer::Send(const json::Value& payload) {
     const std::string encoded = payload.dump();
     Logger::Debug(std::string("Send raw payload: ") + encoded);
-    output_ << "Content-Length: " << encoded.size() << "\r\n\r\n" << encoded;
+    output_ << "Content-Length: " << encoded.size() << "\r\n"
+          << "Content-Type: application/json; charset=utf-8\r\n"
+          << "\r\n"
+          << encoded;
     output_.flush();
 }
 
