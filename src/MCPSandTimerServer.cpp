@@ -14,7 +14,7 @@
 
 namespace mcp_sandtimer {
 namespace {
-constexpr const char* kProtocolVersion = "2024-11-05";
+constexpr const char* kProtocolVersion = "2024-05-01";
 
 // 去除字符串前后空白字符
 std::string Trim(const std::string& value) {
@@ -261,21 +261,17 @@ json::Value MCPSandTimerServer::HandleInitialize(const json::Value& params) {
     (void)params;
     initialized_ = true;
 
-    // 服务端信息
     json::Value server_info = json::make_object({
         {"name", json::Value("mcp-sandtimer")},
         {"version", json::Value(kVersion)}
     });
 
-    // 明确声明支持的能力
     json::Value capabilities = json::make_object({
-        {"tools", json::make_object({})},
-        {"resources", json::make_object({})},
-        {"notifications", json::make_object({})}
+        {"tools", json::make_object({})}
     });
 
     return json::make_object({
-        {"protocolVersion", json::Value("2024-05-01")}, // 建议用和 cpp-mcp 相同的版本
+        {"protocolVersion", json::Value(kProtocolVersion)},
         {"serverInfo", server_info},
         {"capabilities", capabilities}
     });
@@ -392,9 +388,8 @@ void MCPSandTimerServer::Send(const json::Value& payload) {
     const std::string encoded = payload.dump();
     Logger::Debug(std::string("Send raw payload: ") + encoded);
     output_ << "Content-Length: " << encoded.size() << "\r\n"
-          << "Content-Type: application/json; charset=utf-8\r\n"
-          << "\r\n"
-          << encoded;
+            << "\r\n"
+            << encoded;
     output_.flush();
 }
 
