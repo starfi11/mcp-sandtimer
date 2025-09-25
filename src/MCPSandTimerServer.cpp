@@ -260,22 +260,27 @@ json::Value MCPSandTimerServer::HandleRequest(const std::string& method, const j
 json::Value MCPSandTimerServer::HandleInitialize(const json::Value& params) {
     (void)params;
     initialized_ = true;
-    // 构造服务端信息
+
+    // 服务端信息
     json::Value server_info = json::make_object({
         {"name", json::Value("mcp-sandtimer")},
         {"version", json::Value(kVersion)}
     });
-    // 声明能力
+
+    // 明确声明支持的能力
     json::Value capabilities = json::make_object({
-        {"tools", json::make_object({})}
+        {"tools", json::make_object({})},
+        {"resources", json::make_object({})},
+        {"notifications", json::make_object({})}
     });
-    // 返回握手结果
+
     return json::make_object({
-        {"protocolVersion", json::Value(kProtocolVersion)},
+        {"protocolVersion", json::Value("2024-05-01")}, // 建议用和 cpp-mcp 相同的版本
         {"serverInfo", server_info},
         {"capabilities", capabilities}
     });
 }
+
 
 json::Value MCPSandTimerServer::HandleToolCall(const json::Value& params) {
     Logger::Info("Handling tool call request");
@@ -406,18 +411,21 @@ void MCPSandTimerServer::SendResponse(const json::Value& id, const json::Value& 
 void MCPSandTimerServer::SendError(const json::Value& id, const JSONRPCError& error) {
     json::Value error_object = json::make_object({
         {"code", json::Value(error.code())},
-        {"message", json::Value(error.message().c_str())}
+        {"message", json::Value(error.message())}
     });
     if (error.has_data()) {
         error_object.as_object()["data"] = error.data();
     }
+
     json::Value response = json::make_object({
         {"jsonrpc", json::Value("2.0")},
         {"id", id},
         {"error", error_object}
     });
+
     Logger::Info(std::string("SendError: ") + response.dump());
     Send(response);
 }
+
 
 }  // namespace mcp_sandtimer
