@@ -19,6 +19,7 @@ add_library(mcp_sandtimer_lib STATIC
     src/TimerClient.cpp
     src/Json.cpp
     src/ToolDefinition.cpp
+    src/Logger.cpp
 )
 
 add_library(mcp_sandtimer::lib ALIAS mcp_sandtimer_lib)
@@ -46,6 +47,7 @@ target_sources(mcp_sandtimer_lib
             include/mcp_sandtimer/TimerClient.h
             include/mcp_sandtimer/Json.h
             include/mcp_sandtimer/ToolDefinition.h
+            include/mcp_sandtimer/Logger.h
             ${CMAKE_CURRENT_BINARY_DIR}/generated/mcp_sandtimer/Version.h
 )
 
